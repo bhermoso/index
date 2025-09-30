@@ -1,0 +1,2036 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 Dashboard Salud Universitaria</title>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4299e1, #3182ce);
+            color: white;
+            padding: 2rem;
+        }
+        .header h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+        .file-upload {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px dashed rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            padding: 1rem;
+            cursor: pointer;
+            text-align: center;
+            margin-top: 1rem;
+        }
+        .file-upload input { display: none; }
+        #status { margin-top: 1rem; padding: 0.5rem; border-radius: 8px; display: none; }
+        .status-success { background: #c6f6d5; color: #22543d; }
+        .tabs {
+            display: flex;
+            background: #f7fafc;
+            border-bottom: 2px solid #e2e8f0;
+            overflow-x: auto;
+            flex-wrap: wrap;
+        }
+        .tab {
+            padding: 1rem 1.5rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-weight: 500;
+            color: #718096;
+            border-bottom: 3px solid transparent;
+            white-space: nowrap;
+        }
+        .tab.active { color: #3182ce; border-bottom-color: #3182ce; background: white; }
+        .content { padding: 2rem; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: rotate 20s linear infinite;
+        }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .metric-value {
+            font-size: 4rem;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+            position: relative;
+            z-index: 1;
+        }
+        .metric-label {
+            font-size: 1rem;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+        .metric-sublabel {
+            font-size: 0.85rem;
+            opacity: 0.7;
+            margin-top: 0.5rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .comparison-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-top: 4px solid #4299e1;
+        }
+        .comparison-card h3 {
+            color: #2d3748;
+            margin-bottom: 1.5rem;
+            font-size: 1.2rem;
+        }
+        .comparison-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .comparison-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .comparison-label {
+            min-width: 80px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        .comparison-bar-container {
+            flex: 1;
+            height: 40px;
+            background: #f7fafc;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+        .comparison-bar {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding: 0 1rem;
+            color: white;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: width 1s ease;
+        }
+        .bar-hombre { background: linear-gradient(90deg, #4299e1, #3182ce); }
+        .bar-mujer { background: linear-gradient(90deg, #f093fb, #d946ef); }
+        
+        .insight-card {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border-left: 6px solid #f59e0b;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+        }
+        .insight-card h4 {
+            color: #92400e;
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .insight-text {
+            color: #78350f;
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+        
+        .alert-card {
+            background: linear-gradient(135deg, #fecaca, #fca5a5);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border-left: 6px solid #dc2626;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+        }
+        .alert-card h4 {
+            color: #7f1d1d;
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+        }
+        
+        .success-card {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border-left: 6px solid #10b981;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+        }
+        .success-card h4 {
+            color: #064e3b;
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+        }
+        
+        .chart-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            grid-column: span 2;
+        }
+        .chart-card h3 {
+            color: #2d3748;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .split-metric {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        .split-side {
+            text-align: center;
+            padding: 1.5rem;
+            border-radius: 12px;
+        }
+        .split-hombre {
+            background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+            border: 2px solid #3b82f6;
+        }
+        .split-mujer {
+            background: linear-gradient(135deg, #fae8ff, #f3e8ff);
+            border: 2px solid #d946ef;
+        }
+        .split-value {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+        .split-label {
+            font-size: 0.9rem;
+            color: #475569;
+            margin-top: 0.5rem;
+        }
+        
+        .empty {
+            text-align: center;
+            padding: 3rem;
+            color: #718096;
+        }
+        
+        /* Estilos Resumen Ejecutivo */
+        .hero-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3rem;
+            border-radius: 20px;
+            margin-bottom: 2rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: rotate 30s linear infinite;
+        }
+        .hero-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            position: relative;
+            z-index: 1;
+        }
+        .hero-subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .section-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin: 2rem 0 1.5rem 0;
+            padding-left: 1rem;
+            border-left: 6px solid #4299e1;
+        }
+        
+        .hallazgo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .hallazgo-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border-top: 6px solid #4299e1;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .hallazgo-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        }
+        .hallazgo-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .hallazgo-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 0.5rem;
+        }
+        .hallazgo-numero {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #4299e1;
+            margin: 0.5rem 0;
+        }
+        .hallazgo-descripcion {
+            color: #4a5568;
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+        
+        .hallazgo-critico {
+            border-top-color: #ef4444;
+        }
+        .hallazgo-critico .hallazgo-numero {
+            color: #ef4444;
+        }
+        
+        .hallazgo-warning {
+            border-top-color: #f59e0b;
+        }
+        .hallazgo-warning .hallazgo-numero {
+            color: #f59e0b;
+        }
+        
+        .hallazgo-success {
+            border-top-color: #10b981;
+        }
+        .hallazgo-success .hallazgo-numero {
+            color: #10b981;
+        }
+        
+        .conclusiones-container {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-radius: 20px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            border-left: 8px solid #f59e0b;
+        }
+        .conclusion-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+        }
+        .conclusion-icon {
+            font-size: 2rem;
+            flex-shrink: 0;
+        }
+        .conclusion-text {
+            color: #78350f;
+            line-height: 1.6;
+            font-size: 1rem;
+        }
+        
+        .recomendaciones-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .recomendacion-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        .recomendacion-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 6px;
+            height: 100%;
+        }
+        .prioridad-alta::before {
+            background: linear-gradient(180deg, #ef4444, #dc2626);
+        }
+        .prioridad-media::before {
+            background: linear-gradient(180deg, #f59e0b, #d97706);
+        }
+        .prioridad-baja::before {
+            background: linear-gradient(180deg, #10b981, #059669);
+        }
+        
+        .recomendacion-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .recomendacion-icono {
+            font-size: 2.5rem;
+        }
+        .recomendacion-titulo {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #2d3748;
+        }
+        .recomendacion-prioridad {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-top: 0.5rem;
+        }
+        .prioridad-alta-badge {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .prioridad-media-badge {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .prioridad-baja-badge {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .recomendacion-texto {
+            color: #4a5568;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+        .recomendacion-acciones {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 1rem;
+        }
+        .recomendacion-acciones-titulo {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #4a5568;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+        }
+        .recomendacion-acciones ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .recomendacion-acciones li {
+            padding: 0.5rem 0;
+            color: #4a5568;
+            font-size: 0.9rem;
+        }
+        .recomendacion-acciones li::before {
+            content: '→';
+            color: #4299e1;
+            font-weight: 700;
+            margin-right: 0.5rem;
+        }
+        
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-mini {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        .stat-mini-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #4299e1;
+        }
+        .stat-mini-label {
+            font-size: 0.85rem;
+            color: #718096;
+            margin-top: 0.25rem;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+            .chart-card { grid-column: span 1; }
+            .split-metric { grid-template-columns: 1fr; }
+            .hero-title { font-size: 1.8rem; }
+            .section-title { font-size: 1.4rem; }
+            .hallazgo-grid { grid-template-columns: 1fr; }
+            .recomendaciones-container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Dashboard Salud Universitaria</h1>
+            <p>Análisis inteligente con insights clave</p>
+            <label class="file-upload">
+                <input type="file" id="csvFile" accept=".csv">
+                <span>📁 Cargar archivo CSV</span>
+            </label>
+            <div id="status"></div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('resumen-ejecutivo')">📋 Resumen Ejecutivo</button>
+            <button class="tab" onclick="showTab('overview')">📊 Datos Generales</button>
+            <button class="tab" onclick="showTab('autopercepcion')">💭 Autopercepción</button>
+            <button class="tab" onclick="showTab('condiciones')">🎓 Condiciones</button>
+            <button class="tab" onclick="showTab('alimentacion')">🍎 Alimentación</button>
+            <button class="tab" onclick="showTab('actividad')">🏃 Actividad</button>
+            <button class="tab" onclick="showTab('sueno')">😴 Sueño</button>
+            <button class="tab" onclick="showTab('bienestar')">🧠 Bienestar</button>
+            <button class="tab" onclick="showTab('habitos')">🚬 Hábitos</button>
+            <button class="tab" onclick="showTab('sexualidad')">❤️ Sexualidad</button>
+        </div>
+
+        <div class="content">
+            <div id="resumen-ejecutivo" class="tab-content active">
+                <div class="empty">
+                    <h3>Carga un archivo CSV para ver el resumen ejecutivo</h3>
+                    <p>Se generará un informe completo con hallazgos, conclusiones y recomendaciones</p>
+                </div>
+            </div>
+            <div id="overview" class="tab-content">
+                <div class="empty">
+                    <h3>Carga un archivo CSV para ver el dashboard inteligente</h3>
+                    <p>Se generarán visualizaciones solo donde sean relevantes</p>
+                </div>
+            </div>
+            <div id="autopercepcion" class="tab-content"></div>
+            <div id="condiciones" class="tab-content"></div>
+            <div id="alimentacion" class="tab-content"></div>
+            <div id="actividad" class="tab-content"></div>
+            <div id="sueno" class="tab-content"></div>
+            <div id="bienestar" class="tab-content"></div>
+            <div id="habitos" class="tab-content"></div>
+            <div id="sexualidad" class="tab-content"></div>
+        </div>
+    </div>
+
+    <script>
+        let data = null;
+        let sexColumn = null;
+        let charts = [];
+
+        const labels = {
+            'sexo': { '1': 'Hombre', '2': 'Mujer' },
+            'autopercepcion_salud_general': { '1': 'Muy mala', '2': 'Mala', '3': 'Buena', '4': 'Muy buena' },
+            'autopercepcion_salud_mental': { '1': 'Muy mala', '2': 'Mala', '3': 'Regular', '4': 'Buena', '5': 'Muy buena' },
+            'recursos_economicos_alimentacion': { '0': 'Nunca', '1': 'Sí tiene problemas' },
+            'estres_academico': { '0': 'Bajo/Normal', '1': 'Alto' },
+            'calidad_sueno': { '0': 'Muy mala', '1': 'Mala', '2': 'Buena', '3': 'Muy buena' },
+            'fuma_actualmente': { '0': 'No', '1': 'Sí' },
+            'bebe_actualmente': { '0': 'No', '1': 'Sí' },
+            'uso_proteccion_barrera': { '1': 'Nunca', '2': 'Raramente', '3': 'A veces', '4': 'A menudo', '5': 'Siempre' },
+            'conoce_prep': { '0': 'No', '1': 'Sí' },
+            'conoce_ppe': { '0': 'No', '1': 'Sí' },
+            'cribado_its_12m': { '0': 'No', '1': 'Sí' }
+        };
+
+        document.getElementById('csvFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    data = results.data.filter(row => Object.values(row).some(val => val !== '' && val !== null));
+                    sexColumn = 'sexo';
+                    document.getElementById('status').textContent = `✓ ${data.length} registros cargados`;
+                    document.getElementById('status').className = 'status-success';
+                    document.getElementById('status').style.display = 'block';
+                    generateDashboard();
+                }
+            });
+        });
+
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+
+        function getLabel(varName, value) {
+            if (!value && value !== 0) return value;
+            return labels[varName]?.[value.toString()] || value;
+        }
+
+        function getDist(varName) {
+            const dist = {};
+            data.forEach(row => {
+                const val = row[varName];
+                if (val !== null && val !== undefined && val !== '') {
+                    const label = getLabel(varName, val);
+                    dist[label] = (dist[label] || 0) + 1;
+                }
+            });
+            return dist;
+        }
+
+        function getSexComp(varName) {
+            const comp = {};
+            data.forEach(row => {
+                const sex = getLabel('sexo', row.sexo);
+                const val = getLabel(varName, row[varName]);
+                if (sex && val) {
+                    if (!comp[sex]) comp[sex] = {};
+                    comp[sex][val] = (comp[sex][val] || 0) + 1;
+                }
+            });
+            return comp;
+        }
+
+        function getAverage(varName) {
+            const values = data.map(row => row[varName]).filter(v => v !== null && v !== undefined && v !== '');
+            if (values.length === 0) return 0;
+            const avg = values.reduce((a, b) => a + b, 0) / values.length;
+            // Convertir sedentarismo de minutos a horas
+            if (varName === 'sedentarismo') {
+                return avg / 60;
+            }
+            return avg;
+        }
+
+        function getAverageBySex(varName) {
+            const result = {};
+            const sexes = ['Hombre', 'Mujer'];
+            
+            sexes.forEach(sex => {
+                const sexCode = sex === 'Hombre' ? 1 : 2;
+                const values = data
+                    .filter(row => row.sexo === sexCode)
+                    .map(row => row[varName])
+                    .filter(v => v !== null && v !== undefined && v !== '');
+                
+                if (values.length > 0) {
+                    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+                    // Convertir sedentarismo de minutos a horas
+                    if (varName === 'sedentarismo') {
+                        result[sex] = avg / 60;
+                    } else {
+                        result[sex] = avg;
+                    }
+                }
+            });
+            
+            return result;
+        }
+
+        function generateDashboard() {
+            generateResumenEjecutivo();
+            generateOverview();
+            generateAutopercepcion();
+            generateCondiciones();
+            generateAlimentacion();
+            generateActividad();
+            generateSueno();
+            generateBienestar();
+            generateHabitos();
+            generateSexualidad();
+        }
+
+        function generateResumenEjecutivo() {
+            const container = document.getElementById('resumen-ejecutivo');
+            
+            // Calcular todas las métricas necesarias
+            const sexDist = getDist('sexo');
+            const total = data.length;
+            
+            // Autopercepción
+            const saludGen = getDist('autopercepcion_salud_general');
+            const totalSaludGen = Object.values(saludGen).reduce((a,b) => a+b, 0);
+            const buenaSaludGen = (saludGen['Buena'] || 0) + (saludGen['Muy buena'] || 0);
+            const pctBuenaSaludGen = totalSaludGen > 0 ? (buenaSaludGen / totalSaludGen * 100).toFixed(1) : 0;
+            
+            const saludMent = getDist('autopercepcion_salud_mental');
+            const totalSaludMent = Object.values(saludMent).reduce((a,b) => a+b, 0);
+            const buenaSaludMent = (saludMent['Buena'] || 0) + (saludMent['Muy buena'] || 0);
+            const pctBuenaSaludMent = totalSaludMent > 0 ? (buenaSaludMent / totalSaludMent * 100).toFixed(1) : 0;
+            
+            // Condiciones
+            const estres = getDist('estres_academico');
+            const totalEstres = Object.values(estres).reduce((a,b) => a+b, 0);
+            const altoEstres = estres['Alto'] || 0;
+            const pctAltoEstres = totalEstres > 0 ? (altoEstres / totalEstres * 100).toFixed(1) : 0;
+            
+            const recursos = getDist('recursos_economicos_alimentacion');
+            const totalRecursos = Object.values(recursos).reduce((a,b) => a+b, 0);
+            const problemasRecursos = recursos['Sí tiene problemas'] || 0;
+            const pctProblemasRecursos = totalRecursos > 0 ? (problemasRecursos / totalRecursos * 100).toFixed(1) : 0;
+            
+            // Alimentación
+            const frutasVerduras = getAverage('frutas_y_verduras');
+            const bebidasAzucaradas = getAverage('bebidas_azucaradas');
+            
+            // Actividad
+            const sedentarismo = getAverage('sedentarismo');
+            const diasCaminata = getAverage('dias_caminata');
+            
+            // Sueño
+            const horasSueno = getAverage('horas_sueno');
+            const calidadSueno = getDist('calidad_sueno');
+            const totalCalidadSueno = Object.values(calidadSueno).reduce((a,b) => a+b, 0);
+            const buenaCalidadSueno = (calidadSueno['Buena'] || 0) + (calidadSueno['Muy buena'] || 0);
+            const pctBuenaCalidadSueno = (buenaCalidadSueno / totalCalidadSueno * 100).toFixed(1);
+            
+            // Bienestar
+            const who1 = getAverage('who_1_energia');
+            const who2 = getAverage('who_2_tranquilidad');
+            const who3 = getAverage('who_3_interes_x_las_cosas');
+            const who4 = getAverage('who_4_ganas_empezar_dia');
+            const who5 = getAverage('who_5_vida_llena');
+            const promedioWHO5 = ((who1 + who2 + who3 + who4 + who5) / 5).toFixed(1);
+            
+            // Hábitos
+            const fuma = getDist('fuma_actualmente');
+            const totalFuma = Object.values(fuma).reduce((a,b) => a+b, 0);
+            const siFuma = fuma['Sí'] || 0;
+            const pctFuma = (siFuma / totalFuma * 100).toFixed(1);
+            
+            const bebe = getDist('bebe_actualmente');
+            const totalBebe = Object.values(bebe).reduce((a,b) => a+b, 0);
+            const siBebe = bebe['Sí'] || 0;
+            const pctBebe = (siBebe / totalBebe * 100).toFixed(1);
+            
+            // Sexualidad
+            const proteccion = getDist('uso_proteccion_barrera');
+            const totalProteccion = Object.values(proteccion).reduce((a,b) => a+b, 0);
+            const siempreProteccion = proteccion['Siempre'] || 0;
+            const pctSiempreProteccion = totalProteccion > 0 ? (siempreProteccion / totalProteccion * 100).toFixed(1) : 0;
+            
+            // Identificar hallazgos críticos
+            const hallazgosCriticos = [];
+            const hallazgosWarning = [];
+            const hallazgosPositivos = [];
+            
+            if (pctAltoEstres > 50) {
+                hallazgosCriticos.push({
+                    icon: '😰',
+                    title: 'Estrés Académico Crítico',
+                    numero: `${pctAltoEstres}%`,
+                    descripcion: `${altoEstres} estudiantes reportan niveles de estrés académico altos o muy altos. Esto representa más de la mitad de la población estudiantil.`
+                });
+            }
+            
+            if (pctProblemasRecursos > 20) {
+                hallazgosCriticos.push({
+                    icon: '🍽️',
+                    title: 'Inseguridad Alimentaria',
+                    numero: `${pctProblemasRecursos}%`,
+                    descripcion: `${problemasRecursos} estudiantes tienen dificultades económicas para acceder a una alimentación adecuada.`
+                });
+            }
+            
+            if (horasSueno < 7) {
+                hallazgosWarning.push({
+                    icon: '😴',
+                    title: 'Déficit de Sueño',
+                    numero: `${horasSueno.toFixed(1)}h`,
+                    descripcion: `El promedio está por debajo de las 7-9 horas recomendadas, lo que puede afectar rendimiento académico y salud.`
+                });
+            }
+            
+            if (sedentarismo > 8) {
+                hallazgosWarning.push({
+                    icon: '🪑',
+                    title: 'Alto Sedentarismo',
+                    numero: `${sedentarismo.toFixed(1)}h/día`,
+                    descripcion: `Tiempo sedentario elevado, asociado con riesgos cardiovasculares y metabólicos.`
+                });
+            }
+            
+            if (pctSiempreProteccion < 50 && totalProteccion > 0) {
+                hallazgosWarning.push({
+                    icon: '❤️',
+                    title: 'Protección Sexual Inconsistente',
+                    numero: `${pctSiempreProteccion}%`,
+                    descripcion: `Solo ${siempreProteccion} estudiantes usan protección de barrera siempre, aumentando riesgo de ITS.`
+                });
+            }
+            
+            if (frutasVerduras < 3) {
+                hallazgosWarning.push({
+                    icon: '🥗',
+                    title: 'Bajo Consumo de Frutas/Verduras',
+                    numero: `${frutasVerduras.toFixed(1)} días`,
+                    descripcion: `Por debajo de las recomendaciones de 5-7 días/semana.`
+                });
+            }
+            
+            if (pctBuenaSaludGen >= 70) {
+                hallazgosPositivos.push({
+                    icon: '💪',
+                    title: 'Buena Percepción de Salud',
+                    numero: `${pctBuenaSaludGen}%`,
+                    descripcion: `La mayoría de estudiantes percibe su salud general como buena o muy buena.`
+                });
+            }
+            
+            if (pctFuma < 20) {
+                hallazgosPositivos.push({
+                    icon: '🚭',
+                    title: 'Bajo Consumo de Tabaco',
+                    numero: `${pctFuma}%`,
+                    descripcion: `Prevalencia de tabaquismo por debajo de la media nacional universitaria.`
+                });
+            }
+            
+            // Generar HTML
+            let html = `
+                <div class="hero-section">
+                    <div class="hero-title">📊 Resumen Ejecutivo</div>
+                    <div class="hero-subtitle">Análisis Integral de Salud Universitaria - ${total} Participantes</div>
+                </div>
+                
+                <div class="stats-overview">
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">${total}</div>
+                        <div class="stat-mini-label">Participantes</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">${pctBuenaSaludGen}%</div>
+                        <div class="stat-mini-label">Salud General Buena</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">${pctBuenaSaludMent}%</div>
+                        <div class="stat-mini-label">Salud Mental Buena</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">${promedioWHO5}</div>
+                        <div class="stat-mini-label">Índice WHO-5</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">${horasSueno.toFixed(1)}h</div>
+                        <div class="stat-mini-label">Sueño Promedio</div>
+                    </div>
+                </div>
+            `;
+            
+            // Hallazgos Críticos
+            if (hallazgosCriticos.length > 0) {
+                html += `<h2 class="section-title">🚨 Hallazgos Críticos</h2>
+                         <div class="hallazgo-grid">`;
+                hallazgosCriticos.forEach(h => {
+                    html += `
+                        <div class="hallazgo-card hallazgo-critico">
+                            <div class="hallazgo-icon">${h.icon}</div>
+                            <div class="hallazgo-title">${h.title}</div>
+                            <div class="hallazgo-numero">${h.numero}</div>
+                            <div class="hallazgo-descripcion">${h.descripcion}</div>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            }
+            
+            // Hallazgos de Advertencia
+            if (hallazgosWarning.length > 0) {
+                html += `<h2 class="section-title">⚠️ Áreas de Atención</h2>
+                         <div class="hallazgo-grid">`;
+                hallazgosWarning.forEach(h => {
+                    html += `
+                        <div class="hallazgo-card hallazgo-warning">
+                            <div class="hallazgo-icon">${h.icon}</div>
+                            <div class="hallazgo-title">${h.title}</div>
+                            <div class="hallazgo-numero">${h.numero}</div>
+                            <div class="hallazgo-descripcion">${h.descripcion}</div>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            }
+            
+            // Hallazgos Positivos
+            if (hallazgosPositivos.length > 0) {
+                html += `<h2 class="section-title">✅ Aspectos Positivos</h2>
+                         <div class="hallazgo-grid">`;
+                hallazgosPositivos.forEach(h => {
+                    html += `
+                        <div class="hallazgo-card hallazgo-success">
+                            <div class="hallazgo-icon">${h.icon}</div>
+                            <div class="hallazgo-title">${h.title}</div>
+                            <div class="hallazgo-numero">${h.numero}</div>
+                            <div class="hallazgo-descripcion">${h.descripcion}</div>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            }
+            
+            // Conclusiones
+            html += `
+                <h2 class="section-title">💡 Conclusiones Principales</h2>
+                <div class="conclusiones-container">
+                    <div class="conclusion-item">
+                        <div class="conclusion-icon">🎯</div>
+                        <div class="conclusion-text">
+                            <strong>Estado general de salud mixto:</strong> Aunque ${pctBuenaSaludGen}% percibe su salud general como buena, 
+                            solo ${pctBuenaSaludMent}% reporta buena salud mental, evidenciando una brecha significativa que requiere atención.
+                        </div>
+                    </div>
+                    ${pctAltoEstres > 50 ? `
+                    <div class="conclusion-item">
+                        <div class="conclusion-icon">📚</div>
+                        <div class="conclusion-text">
+                            <strong>Crisis de estrés académico:</strong> Con ${pctAltoEstres}% reportando altos niveles de estrés, 
+                            existe una necesidad urgente de intervenciones para gestión del estrés y apoyo psicológico.
+                        </div>
+                    </div>` : ''}
+                    ${horasSueno < 7 ? `
+                    <div class="conclusion-item">
+                        <div class="conclusion-icon">😴</div>
+                        <div class="conclusion-text">
+                            <strong>Privación crónica del sueño:</strong> El promedio de ${horasSueno.toFixed(1)} horas de sueño 
+                            está impactando directamente en el rendimiento académico y bienestar emocional de los estudiantes.
+                        </div>
+                    </div>` : ''}
+                    ${sedentarismo > 8 ? `
+                    <div class="conclusion-item">
+                        <div class="conclusion-icon">🪑</div>
+                        <div class="conclusion-text">
+                            <strong>Estilo de vida sedentario:</strong> Con ${sedentarismo.toFixed(1)} horas diarias sedentarias, 
+                            los estudiantes enfrentan riesgos de salud a largo plazo que requieren promoción de actividad física.
+                        </div>
+                    </div>` : ''}
+                    ${pctProblemasRecursos > 20 ? `
+                    <div class="conclusion-item">
+                        <div class="conclusion-icon">🍽️</div>
+                        <div class="conclusion-text">
+                            <strong>Inseguridad alimentaria preocupante:</strong> ${pctProblemasRecursos}% de estudiantes con problemas 
+                            económicos para alimentación representa una vulnerabilidad social que impacta en salud y rendimiento académico.
+                        </div>
+                    </div>` : ''}
+                    <div class="conclusion-item">
+                        <div class="conclusion-icon">🌟</div>
+                        <div class="conclusion-text">
+                            <strong>Oportunidades de mejora:</strong> Existen áreas positivas como bajo consumo de tabaco (${pctFuma}%) 
+                            que pueden servir como base para intervenciones en otras áreas de la salud estudiantil.
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Recomendaciones
+            html += `<h2 class="section-title">🎯 Recomendaciones Estratégicas</h2>
+                     <div class="recomendaciones-container">`;
+            
+            // Recomendación 1: Salud Mental (Prioridad Alta)
+            if (pctAltoEstres > 50 || pctBuenaSaludMent < 60) {
+                html += `
+                    <div class="recomendacion-card prioridad-alta">
+                        <div class="recomendacion-header">
+                            <div class="recomendacion-icono">🧠</div>
+                            <div>
+                                <div class="recomendacion-titulo">Programa Integral de Salud Mental</div>
+                                <span class="recomendacion-prioridad prioridad-alta-badge">Prioridad Alta</span>
+                            </div>
+                        </div>
+                        <div class="recomendacion-texto">
+                            Implementar un programa comprehensivo que aborde el estrés académico, mejore el bienestar emocional 
+                            y proporcione herramientas de gestión psicológica accesibles para toda la comunidad estudiantil.
+                        </div>
+                        <div class="recomendacion-acciones">
+                            <div class="recomendacion-acciones-titulo">Acciones Específicas</div>
+                            <ul>
+                                <li>Ampliar servicios de counseling con citas disponibles en 48h</li>
+                                <li>Talleres semanales de gestión del estrés y mindfulness</li>
+                                <li>App de salud mental con recursos 24/7</li>
+                                <li>Grupos de apoyo entre pares moderados por profesionales</li>
+                                <li>Capacitación docente en detección temprana de problemas</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Recomendación 2: Inseguridad Alimentaria (Prioridad Alta)
+            if (pctProblemasRecursos > 20) {
+                html += `
+                    <div class="recomendacion-card prioridad-alta">
+                        <div class="recomendacion-header">
+                            <div class="recomendacion-icono">🍽️</div>
+                            <div>
+                                <div class="recomendacion-titulo">Programa de Seguridad Alimentaria</div>
+                                <span class="recomendacion-prioridad prioridad-alta-badge">Prioridad Alta</span>
+                            </div>
+                        </div>
+                        <div class="recomendacion-texto">
+                            Desarrollar un sistema de apoyo alimentario que garantice que ningún estudiante enfrente 
+                            dificultades para acceder a una nutrición adecuada durante su formación académica.
+                        </div>
+                        <div class="recomendacion-acciones">
+                            <div class="recomendacion-acciones-titulo">Acciones Específicas</div>
+                            <ul>
+                                <li>Becas comedor con proceso de solicitud simplificado</li>
+                                <li>Banco de alimentos universitario con distribución semanal</li>
+                                <li>Convenios con supermercados para descuentos estudiantiles</li>
+                                <li>Talleres de cocina económica y nutritiva</li>
+                                <li>Comedor social universitario con menús subsidiados</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Recomendación 3: Higiene del Sueño (Prioridad Media)
+            if (horasSueno < 7 || pctBuenaCalidadSueno < 50) {
+                html += `
+                    <div class="recomendacion-card prioridad-media">
+                        <div class="recomendacion-header">
+                            <div class="recomendacion-icono">😴</div>
+                            <div>
+                                <div class="recomendacion-titulo">Iniciativa de Higiene del Sueño</div>
+                                <span class="recomendacion-prioridad prioridad-media-badge">Prioridad Media</span>
+                            </div>
+                        </div>
+                        <div class="recomendacion-texto">
+                            Promover hábitos saludables de sueño mediante educación y cambios institucionales 
+                            que respeten los ritmos circadianos y necesidades de descanso estudiantil.
+                        </div>
+                        <div class="recomendacion-acciones">
+                            <div class="recomendacion-acciones-titulo">Acciones Específicas</div>
+                            <ul>
+                                <li>Evitar horarios de clases antes de 9:00 AM</li>
+                                <li>Campaña educativa sobre importancia del sueño</li>
+                                <li>Espacios de siesta en biblioteca y centros estudiantiles</li>
+                                <li>Recursos online sobre higiene del sueño</li>
+                                <li>Política de fechas límite razonables para trabajos</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Recomendación 4: Actividad Física (Prioridad Media)
+            if (sedentarismo > 8) {
+                html += `
+                    <div class="recomendacion-card prioridad-media">
+                        <div class="recomendacion-header">
+                            <div class="recomendacion-icono">🏃</div>
+                            <div>
+                                <div class="recomendacion-titulo">Programa de Actividad Física</div>
+                                <span class="recomendacion-prioridad prioridad-media-badge">Prioridad Media</span>
+                            </div>
+                        </div>
+                        <div class="recomendacion-texto">
+                            Reducir el sedentarismo mediante infraestructura, programas y cultura universitaria 
+                            que facilite e incentive la actividad física regular integrada en la vida estudiantil.
+                        </div>
+                        <div class="recomendacion-acciones">
+                            <div class="recomendacion-acciones-titulo">Acciones Específicas</div>
+                            <ul>
+                                <li>Pausas activas obligatorias en clases largas (10 min/2h)</li>
+                                <li>Gimnasio universitario gratuito con horarios extendidos</li>
+                                <li>Ligas deportivas recreativas inter-facultades</li>
+                                <li>Escritorios de pie en bibliotecas y salas de estudio</li>
+                                <li>App con retos de pasos y recompensas</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Recomendación 5: Nutrición (Prioridad Media)
+            if (frutasVerduras < 3 || bebidasAzucaradas > 3) {
+                html += `
+                    <div class="recomendacion-card prioridad-media">
+                        <div class="recomendacion-header">
+                            <div class="recomendacion-icono">🥗</div>
+                            <div>
+                                <div class="recomendacion-titulo">Campaña de Alimentación Saludable</div>
+                                <span class="recomendacion-prioridad prioridad-media-badge">Prioridad Media</span>
+                            </div>
+                        </div>
+                        <div class="recomendacion-texto">
+                            Mejorar los hábitos alimentarios mediante educación nutricional, acceso facilitado 
+                            a opciones saludables y modificación del ambiente alimentario en el campus.
+                        </div>
+                        <div class="recomendacion-acciones">
+                            <div class="recomendacion-acciones-titulo">Acciones Específicas</div>
+                            <ul>
+                                <li>Máquinas de vending con frutas frescas y snacks saludables</li>
+                                <li>Subsidios para opciones vegetarianas/saludables en cafeterías</li>
+                                <li>Talleres de nutrición y meal prep para estudiantes</li>
+                                <li>Eliminación progresiva de bebidas azucaradas en campus</li>
+                                <li>Huertos urbanos comunitarios gestionados por estudiantes</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Recomendación 6: Salud Sexual (Prioridad Baja si no es crítico)
+            if (pctSiempreProteccion < 70 && totalProteccion > 0) {
+                html += `
+                    <div class="recomendacion-card prioridad-baja">
+                        <div class="recomendacion-header">
+                            <div class="recomendacion-icono">❤️</div>
+                            <div>
+                                <div class="recomendacion-titulo">Educación en Salud Sexual</div>
+                                <span class="recomendacion-prioridad prioridad-baja-badge">Prioridad Baja</span>
+                            </div>
+                        </div>
+                        <div class="recomendacion-texto">
+                            Fortalecer conocimientos sobre salud sexual, prevención de ITS y acceso a métodos 
+                            de protección mediante educación integral y servicios confidenciales.
+                        </div>
+                        <div class="recomendacion-acciones">
+                            <div class="recomendacion-acciones-titulo">Acciones Específicas</div>
+                            <ul>
+                                <li>Dispensadores gratuitos de preservativos en baños</li>
+                                <li>Talleres de educación sexual integral (no solo biológica)</li>
+                                <li>Servicio de cribado ITS confidencial y gratuito</li>
+                                <li>Información sobre PrEP, PPE y otros métodos preventivos</li>
+                                <li>Campaña de normalización del uso de protección</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += `</div>`;
+            
+            container.innerHTML = html;
+        }
+
+        function generateOverview() {
+            const container = document.getElementById('overview');
+            const sexDist = getDist('sexo');
+            const totalH = sexDist['Hombre'] || 0;
+            const totalM = sexDist['Mujer'] || 0;
+            const total = totalH + totalM;
+
+            container.innerHTML = `
+                <div class="dashboard-grid">
+                    <div class="metric-card">
+                        <div class="metric-value">${total}</div>
+                        <div class="metric-label">Participantes</div>
+                        <div class="metric-sublabel">${totalH} hombres • ${totalM} mujeres</div>
+                    </div>
+                    
+                    <div class="comparison-card">
+                        <h3>Distribución por Sexo</h3>
+                        <div class="comparison-bars">
+                            <div class="comparison-item">
+                                <div class="comparison-label">Hombre</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-hombre" style="width: ${(totalH/total*100)}%">
+                                        ${totalH} (${(totalH/total*100).toFixed(1)}%)
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="comparison-item">
+                                <div class="comparison-label">Mujer</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-mujer" style="width: ${(totalM/total*100)}%">
+                                        ${totalM} (${(totalM/total*100).toFixed(1)}%)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${totalM > totalH * 2 ? `
+                    <div class="insight-card">
+                        <h4>💡 Insight de Participación</h4>
+                        <div class="insight-text">
+                            La muestra tiene ${(totalM/totalH).toFixed(1)}x más mujeres que hombres. 
+                            Esto es común en encuestas de salud universitaria donde las mujeres suelen tener mayor tasa de respuesta.
+                        </div>
+                    </div>` : ''}
+                </div>
+            `;
+        }
+
+        function generateAutopercepcion() {
+            const container = document.getElementById('autopercepcion');
+            
+            const saludGen = getDist('autopercepcion_salud_general');
+            const saludGenSex = getSexComp('autopercepcion_salud_general');
+            
+            const saludMent = getDist('autopercepcion_salud_mental');
+            const saludMentSex = getSexComp('autopercepcion_salud_mental');
+            
+            const totalSaludGen = Object.values(saludGen).reduce((a,b) => a+b, 0);
+            const buenaSaludGen = (saludGen['Buena'] || 0) + (saludGen['Muy buena'] || 0);
+            const pctBuenaSaludGen = totalSaludGen > 0 ? (buenaSaludGen / totalSaludGen * 100).toFixed(1) : 0;
+            
+            const totalSaludMent = Object.values(saludMent).reduce((a,b) => a+b, 0);
+            const buenaSaludMent = (saludMent['Buena'] || 0) + (saludMent['Muy buena'] || 0);
+            const pctBuenaSaludMent = totalSaludMent > 0 ? (buenaSaludMent / totalSaludMent * 100).toFixed(1) : 0;
+            
+            const diffSaludGen = analyzeSexDiff(saludGenSex);
+            const diffSaludMent = analyzeSexDiff(saludMentSex);
+            
+            let html = `
+                <div class="dashboard-grid">
+                    <div class="metric-card" style="background: linear-gradient(135deg, #10b981, #059669);">
+                        <div class="metric-value">${pctBuenaSaludGen}%</div>
+                        <div class="metric-label">Salud General Buena/Muy Buena</div>
+                        <div class="metric-sublabel">${buenaSaludGen} de ${totalSaludGen} participantes</div>
+                    </div>
+                    
+                    <div class="metric-card" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                        <div class="metric-value">${pctBuenaSaludMent}%</div>
+                        <div class="metric-label">Salud Mental Buena/Muy Buena</div>
+                        <div class="metric-sublabel">${buenaSaludMent} de ${totalSaludMent} participantes</div>
+                    </div>
+            `;
+            
+            if (diffSaludGen.maxDiff > 10) {
+                html += `
+                    <div class="alert-card">
+                        <h4>⚠️ Diferencia Significativa en Salud General</h4>
+                        <div class="insight-text">
+                            ${diffSaludGen.text}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (diffSaludMent.maxDiff > 10) {
+                html += `
+                    <div class="alert-card">
+                        <h4>⚠️ Diferencia Significativa en Salud Mental</h4>
+                        <div class="insight-text">
+                            ${diffSaludMent.text}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += generateComparisonBars('Autopercepción Salud General', saludGenSex);
+            html += generateComparisonBars('Autopercepción Salud Mental', saludMentSex);
+            html += '</div>';
+            
+            container.innerHTML = html;
+        }
+
+        function generateCondiciones() {
+            const container = document.getElementById('condiciones');
+            
+            const estres = getDist('estres_academico');
+            const estresSex = getSexComp('estres_academico');
+            const recursos = getDist('recursos_economicos_alimentacion');
+            const recursosSex = getSexComp('recursos_economicos_alimentacion');
+            
+            const totalEstres = Object.values(estres).reduce((a,b) => a+b, 0);
+            const altoEstres = estres['Alto'] || 0;
+            const pctAltoEstres = totalEstres > 0 ? (altoEstres / totalEstres * 100).toFixed(1) : 0;
+            
+            const totalRecursos = Object.values(recursos).reduce((a,b) => a+b, 0);
+            const problemasRecursos = recursos['Sí tiene problemas'] || 0;
+            const pctProblemasRecursos = totalRecursos > 0 ? (problemasRecursos / totalRecursos * 100).toFixed(1) : 0;
+            
+            let html = `
+                <div class="dashboard-grid">
+                    <div class="metric-card" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                        <div class="metric-value">${pctAltoEstres}%</div>
+                        <div class="metric-label">Estrés Académico Alto</div>
+                        <div class="metric-sublabel">${altoEstres} estudiantes reportan estrés frecuente</div>
+                    </div>
+                    
+                    <div class="metric-card" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+                        <div class="metric-value">${pctProblemasRecursos}%</div>
+                        <div class="metric-label">Problemas Económicos para Alimentación</div>
+                        <div class="metric-sublabel">${problemasRecursos} estudiantes con dificultades</div>
+                    </div>
+            `;
+            
+            if (pctAltoEstres > 50) {
+                html += `
+                    <div class="alert-card">
+                        <h4>🚨 Alerta: Alto Nivel de Estrés</h4>
+                        <div class="insight-text">
+                            Más de la mitad de los estudiantes reportan altos niveles de estrés académico. 
+                            Se recomienda implementar programas de gestión del estrés y apoyo psicológico.
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (pctProblemasRecursos > 20) {
+                html += `
+                    <div class="alert-card">
+                        <h4>🚨 Inseguridad Alimentaria Detectada</h4>
+                        <div class="insight-text">
+                            ${pctProblemasRecursos}% de estudiantes tienen problemas para acceder a alimentación adecuada. 
+                            Considerar programas de becas comedor o ayudas alimentarias.
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += generateComparisonBars('Estrés Académico', estresSex);
+            html += '</div>';
+            
+            container.innerHTML = html;
+        }
+
+        function generateAlimentacion() {
+            const container = document.getElementById('alimentacion');
+            
+            const aceiteOliva = getAverage('aceite_oliva');
+            const frutasVerduras = getAverage('frutas_y_verduras');
+            const platosPreparados = getAverage('platos_preparados');
+            const bebidasAzucaradas = getAverage('bebidas_azucaradas');
+            const scoreAlimentacion = getAverage('score_alimentacion');
+            
+            const aceiteOlivaSex = getAverageBySex('aceite_oliva');
+            const frutasVerdurasSex = getAverageBySex('frutas_y_verduras');
+            
+            let html = `
+                <div class="dashboard-grid">
+                    <div class="metric-card" style="background: linear-gradient(135deg, #10b981, #059669);">
+                        <div class="metric-value">${aceiteOliva.toFixed(1)}</div>
+                        <div class="metric-label">Días/semana Aceite de Oliva</div>
+                        <div class="metric-sublabel">Promedio de consumo</div>
+                    </div>
+                    
+                    <div class="metric-card" style="background: linear-gradient(135deg, #22c55e, #16a34a);">
+                        <div class="metric-value">${frutasVerduras.toFixed(1)}</div>
+                        <div class="metric-label">Días/semana Frutas y Verduras</div>
+                        <div class="metric-sublabel">Promedio de consumo</div>
+                    </div>
+                    
+                    <div class="metric-card" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                        <div class="metric-value">${platosPreparados.toFixed(1)}</div>
+                        <div class="metric-label">Días/semana Platos Preparados</div>
+                        <div class="metric-sublabel">Promedio de consumo</div>
+                    </div>
+                    
+                    <div class="metric-card" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+                        <div class="metric-value">${bebidasAzucaradas.toFixed(1)}</div>
+                        <div class="metric-label">Días/semana Bebidas Azucaradas</div>
+                        <div class="metric-sublabel">Promedio de consumo</div>
+                    </div>
+                    
+                    ${frutasVerduras < 3 ? `
+                    <div class="alert-card">
+                        <h4>⚠️ Consumo Bajo de Frutas y Verduras</h4>
+                        <div class="insight-text">
+                            El promedio de ${frutasVerduras.toFixed(1)} días/semana está por debajo de las recomendaciones de salud pública (5-7 días/semana). 
+                            Se sugiere implementar campañas de promoción de alimentación saludable.
+                        </div>
+                    </div>` : ''}
+                    
+                    ${aceiteOliva > 5 ? `
+                    <div class="success-card">
+                        <h4>✅ Buen Uso de Aceite de Oliva</h4>
+                        <div class="insight-text">
+                            El consumo promedio de ${aceiteOliva.toFixed(1)} días/semana indica una buena adherencia a la dieta mediterránea. 
+                            El aceite de oliva es una fuente importante de grasas saludables.
+                        </div>
+                    </div>` : ''}
+                    
+                    ${bebidasAzucaradas > 3 ? `
+                    <div class="alert-card">
+                        <h4>⚠️ Alto Consumo de Bebidas Azucaradas</h4>
+                        <div class="insight-text">
+                            El promedio de ${bebidasAzucaradas.toFixed(1)} días/semana es elevado. 
+                            El consumo frecuente de bebidas azucaradas está asociado con mayor riesgo de sobrepeso y diabetes.
+                        </div>
+                    </div>` : ''}
+            `;
+            
+            if (Object.keys(aceiteOlivaSex).length === 2) {
+                html += `
+                    <div class="comparison-card">
+                        <h3>Consumo de Aceite de Oliva por Sexo</h3>
+                        <div class="comparison-bars">
+                            <div class="comparison-item">
+                                <div class="comparison-label">Hombre</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-hombre" style="width: ${(aceiteOlivaSex['Hombre']/7*100)}%">
+                                        ${aceiteOlivaSex['Hombre'].toFixed(1)} días/semana
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="comparison-item">
+                                <div class="comparison-label">Mujer</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-mujer" style="width: ${(aceiteOlivaSex['Mujer']/7*100)}%">
+                                        ${aceiteOlivaSex['Mujer'].toFixed(1)} días/semana
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (Object.keys(frutasVerdurasSex).length === 2) {
+                html += `
+                    <div class="comparison-card">
+                        <h3>Consumo de Frutas y Verduras por Sexo</h3>
+                        <div class="comparison-bars">
+                            <div class="comparison-item">
+                                <div class="comparison-label">Hombre</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-hombre" style="width: ${(frutasVerdurasSex['Hombre']/7*100)}%">
+                                        ${frutasVerdurasSex['Hombre'].toFixed(1)} días/semana
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="comparison-item">
+                                <div class="comparison-label">Mujer</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-mujer" style="width: ${(frutasVerdurasSex['Mujer']/7*100)}%">
+                                        ${frutasVerdurasSex['Mujer'].toFixed(1)} días/semana
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function generateActividad() {
+            const container = document.getElementById('actividad');
+            
+            const sedentarismo = getAverage('sedentarismo');
+            const diasCaminata = getAverage('dias_caminata');
+            const diasModerada = getAverage('dias_moderada');
+            const diasVigorosa = getAverage('dias_vigorosa');
+            
+            const sedentarismoSex = getAverageBySex('sedentarismo');
+            const diasCaminataSex = getAverageBySex('dias_caminata');
+            
+            const totalActividad = diasCaminata + diasModerada + diasVigorosa;
+            
+            let html = `
+                <div class="dashboard-grid">
+                    <div class="metric-card" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+                        <div class="metric-value">${sedentarismo.toFixed(1)}</div>
+                        <div class="metric-label">Horas Diarias Sedentarias</div>
+                        <div class="metric-sublabel">Promedio de tiempo sentado</div>
+                    </div>
+                    
+                    <div class="metric-card" style="background: linear-gradient(135deg, #10b981, #059669);">
+                        <div class="metric-value">${diasCaminata.toFixed(1)}</div>
+                        <div class="metric-label">Días/semana Caminata</div>
+                        <div class="metric-sublabel">Actividad física ligera</div>
+                    </div>
+                    
+                    <div class="metric-card" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                        <div class="metric-value">${diasModerada.toFixed(1)}</div>
+                        <div class="metric-label">Días/semana Actividad Moderada</div>
+                        <div class="metric-sublabel">Ejercicio moderado</div>
+                    </div>
+                    
+                    <div class="metric-card" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                        <div class="metric-value">${diasVigorosa.toFixed(1)}</div>
+                        <div class="metric-label">Días/semana Actividad Vigorosa</div>
+                        <div class="metric-sublabel">Ejercicio intenso</div>
+                    </div>
+                    
+                    ${sedentarismo > 8 ? `
+                    <div class="alert-card">
+                        <h4>🚨 Alto Nivel de Sedentarismo</h4>
+                        <div class="insight-text">
+                            El promedio de ${sedentarismo.toFixed(1)} horas diarias sedentarias es preocupante. 
+                            El sedentarismo prolongado está asociado con problemas cardiovasculares, metabólicos y de salud mental. 
+                            Se recomienda promover pausas activas y programas de actividad física.
+                        </div>
+                    </div>` : ''}
+                    
+                    ${totalActividad < 3 ? `
+                    <div class="alert-card">
+                        <h4>⚠️ Actividad Física Insuficiente</h4>
+                        <div class="insight-text">
+                            La actividad física total es baja. La OMS recomienda al menos 150 minutos de actividad moderada o 75 minutos de actividad vigorosa por semana. 
+                            Considerar implementar iniciativas deportivas en el campus.
+                        </div>
+                    </div>` : ''}
+                    
+                    ${diasCaminata > 5 ? `
+                    <div class="success-card">
+                        <h4>✅ Buena Frecuencia de Caminata</h4>
+                        <div class="insight-text">
+                            Los estudiantes caminan regularmente (${diasCaminata.toFixed(1)} días/semana). 
+                            La caminata es una excelente forma de mantener la actividad física y mejorar el bienestar mental.
+                        </div>
+                    </div>` : ''}
+            `;
+            
+            if (Object.keys(sedentarismoSex).length === 2) {
+                html += `
+                    <div class="comparison-card">
+                        <h3>Horas Sedentarias por Sexo</h3>
+                        <div class="comparison-bars">
+                            <div class="comparison-item">
+                                <div class="comparison-label">Hombre</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-hombre" style="width: ${(sedentarismoSex['Hombre']/16*100)}%">
+                                        ${sedentarismoSex['Hombre'].toFixed(1)} horas/día
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="comparison-item">
+                                <div class="comparison-label">Mujer</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-mujer" style="width: ${(sedentarismoSex['Mujer']/16*100)}%">
+                                        ${sedentarismoSex['Mujer'].toFixed(1)} horas/día
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function generateSueno() {
+            const container = document.getElementById('sueno');
+            
+            const horasSueno = getAverage('horas_sueno');
+            const calidadSueno = getDist('calidad_sueno');
+            const calidadSuenoSex = getSexComp('calidad_sueno');
+            
+            const totalCalidad = Object.values(calidadSueno).reduce((a,b) => a+b, 0);
+            const buenaCalidad = (calidadSueno['Buena'] || 0) + (calidadSueno['Muy buena'] || 0);
+            const pctBuenaCalidad = totalCalidad > 0 ? (buenaCalidad / totalCalidad * 100).toFixed(1) : 0;
+            
+            const horasSuenoSex = getAverageBySex('horas_sueno');
+            
+            let html = `
+                <div class="dashboard-grid">
+                    <div class="metric-card" style="background: linear-gradient(135deg, #6366f1, #4f46e5);">
+                        <div class="metric-value">${horasSueno.toFixed(1)}</div>
+                        <div class="metric-label">Horas de Sueño Promedio</div>
+                        <div class="metric-sublabel">Por noche</div>
+                    </div>
+                    
+                    <div class="metric-card" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                        <div class="metric-value">${pctBuenaCalidad}%</div>
+                        <div class="metric-label">Calidad de Sueño Buena/Muy Buena</div>
+                        <div class="metric-sublabel">${buenaCalidad} de ${totalCalidad} estudiantes</div>
+                    </div>
+                    
+                    ${horasSueno < 7 ? `
+                    <div class="alert-card">
+                        <h4>⚠️ Déficit de Sueño</h4>
+                        <div class="insight-text">
+                            El promedio de ${horasSueno.toFixed(1)} horas está por debajo de las 7-9 horas recomendadas para adultos jóvenes. 
+                            La privación del sueño afecta el rendimiento académico, la salud mental y el sistema inmunológico. 
+                            Se recomienda promover la higiene del sueño entre estudiantes.
+                        </div>
+                    </div>` : ''}
+                    
+                    ${horasSueno >= 7 && horasSueno <= 9 ? `
+                    <div class="success-card">
+                        <h4>✅ Duración de Sueño Adecuada</h4>
+                        <div class="insight-text">
+                            El promedio de ${horasSueno.toFixed(1)} horas está dentro del rango recomendado (7-9 horas). 
+                            Mantener esta duración contribuye al bienestar físico y mental.
+                        </div>
+                    </div>` : ''}
+                    
+                    ${pctBuenaCalidad < 50 ? `
+                    <div class="alert-card">
+                        <h4>⚠️ Baja Calidad del Sueño</h4>
+                        <div class="insight-text">
+                            Solo el ${pctBuenaCalidad}% reporta buena calidad de sueño. 
+                            La mala calidad del sueño puede estar relacionada con estrés, ansiedad o hábitos inadecuados. 
+                            Considerar talleres sobre higiene del sueño.
+                        </div>
+                    </div>` : ''}
+            `;
+            
+            html += generateComparisonBars('Calidad del Sueño', calidadSuenoSex);
+            
+            if (Object.keys(horasSuenoSex).length === 2) {
+                html += `
+                    <div class="comparison-card">
+                        <h3>Horas de Sueño por Sexo</h3>
+                        <div class="comparison-bars">
+                            <div class="comparison-item">
+                                <div class="comparison-label">Hombre</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-hombre" style="width: ${(horasSuenoSex['Hombre']/12*100)}%">
+                                        ${horasSuenoSex['Hombre'].toFixed(1)} horas/noche
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="comparison-item">
+                                <div class="comparison-label">Mujer</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-mujer" style="width: ${(horasSuenoSex['Mujer']/12*100)}%">
+                                        ${horasSuenoSex['Mujer'].toFixed(1)} horas/noche
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function generateBienestar() {
+            const container = document.getElementById('bienestar');
+            
+            const who1 = getAverage('who_1_energia');
+            const who2 = getAverage('who_2_tranquilidad');
+            const who3 = getAverage('who_3_interes_x_las_cosas');
+            const who4 = getAverage('who_4_ganas_empezar_dia');
+            const who5 = getAverage('who_5_vida_llena');
+            
+            const promedioWHO5 = ((who1 + who2 + who3 + who4 + who5) / 5).toFixed(1);
+            
+            const who1Sex = getAverageBySex('who_1_energia');
+            const who2Sex = getAverageBySex('who_2_tranquilidad');
+            
+            let html = `
+                <div class="dashboard-grid">
+                    <div class="metric-card" style="background: linear-gradient(135deg, #10b981, #059669);">
+                        <div class="metric-value">${promedioWHO5}</div>
+                        <div class="metric-label">Índice WHO-5 Promedio</div>
+                        <div class="metric-sublabel">Bienestar emocional (0-5)</div>
+                    </div>
+                    
+                    <div class="split-metric" style="grid-column: span 2;">
+                        <div class="split-side" style="background: linear-gradient(135deg, #fef3c7, #fde68a); border: 2px solid #f59e0b;">
+                            <div class="split-value">${who1.toFixed(1)}</div>
+                            <div class="split-label">Energía y vitalidad</div>
+                        </div>
+                        <div class="split-side" style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border: 2px solid #3b82f6;">
+                            <div class="split-value">${who2.toFixed(1)}</div>
+                            <div class="split-label">Tranquilidad y relajación</div>
+                        </div>
+                    </div>
+                    
+                    <div class="split-metric" style="grid-column: span 2;">
+                        <div class="split-side" style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border: 2px solid #10b981;">
+                            <div class="split-value">${who3.toFixed(1)}</div>
+                            <div class="split-label">Interés por las cosas</div>
+                        </div>
+                        <div class="split-side" style="background: linear-gradient(135deg, #fae8ff, #f3e8ff); border: 2px solid #d946ef;">
+                            <div class="split-value">${who4.toFixed(1)}</div>
+                            <div class="split-label">Ganas de empezar el día</div>
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                        <div class="metric-value">${who5.toFixed(1)}</div>
+                        <div class="metric-label">Vida Llena de Cosas Interesantes</div>
+                        <div class="metric-sublabel">Escala 0-5</div>
+                    </div>
+                    
+                    ${promedioWHO5 < 2.5 ? `
+                    <div class="alert-card">
+                        <h4>🚨 Alerta: Bajo Bienestar Emocional</h4>
+                        <div class="insight-text">
+                            El índice WHO-5 promedio de ${promedioWHO5} está por debajo del umbral de bienestar saludable (≥3). 
+                            Esto puede indicar riesgo de depresión o bajo bienestar psicológico. 
+                            Se recomienda fortalecer los servicios de apoyo psicológico y salud mental en el campus.
+                        </div>
+                    </div>` : ''}
+                    
+                    ${promedioWHO5 >= 3.5 ? `
+                    <div class="success-card">
+                        <h4>✅ Buen Bienestar Emocional</h4>
+                        <div class="insight-text">
+                            El índice WHO-5 promedio de ${promedioWHO5} indica un buen nivel de bienestar psicológico. 
+                            Los estudiantes reportan sentirse generalmente positivos y con energía.
+                        </div>
+                    </div>` : ''}
+                    
+                    ${who1 < 2.5 ? `
+                    <div class="alert-card">
+                        <h4>⚠️ Baja Energía y Vitalidad</h4>
+                        <div class="insight-text">
+                            La puntuación promedio de ${who1.toFixed(1)} en energía y vitalidad es baja. 
+                            Esto puede estar relacionado con falta de sueño, estrés académico o nutrición inadecuada.
+                        </div>
+                    </div>` : ''}
+            `;
+            
+            if (Object.keys(who1Sex).length === 2) {
+                html += `
+                    <div class="comparison-card">
+                        <h3>Energía y Vitalidad por Sexo</h3>
+                        <div class="comparison-bars">
+                            <div class="comparison-item">
+                                <div class="comparison-label">Hombre</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-hombre" style="width: ${(who1Sex['Hombre']/5*100)}%">
+                                        ${who1Sex['Hombre'].toFixed(1)}/5
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="comparison-item">
+                                <div class="comparison-label">Mujer</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-mujer" style="width: ${(who1Sex['Mujer']/5*100)}%">
+                                        ${who1Sex['Mujer'].toFixed(1)}/5
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (Object.keys(who2Sex).length === 2) {
+                html += `
+                    <div class="comparison-card">
+                        <h3>Tranquilidad y Relajación por Sexo</h3>
+                        <div class="comparison-bars">
+                            <div class="comparison-item">
+                                <div class="comparison-label">Hombre</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-hombre" style="width: ${(who2Sex['Hombre']/5*100)}%">
+                                        ${who2Sex['Hombre'].toFixed(1)}/5
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="comparison-item">
+                                <div class="comparison-label">Mujer</div>
+                                <div class="comparison-bar-container">
+                                    <div class="comparison-bar bar-mujer" style="width: ${(who2Sex['Mujer']/5*100)}%">
+                                        ${who2Sex['Mujer'].toFixed(1)}/5
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function generateHabitos() {
+            const container = document.getElementById('habitos');
+            
+            const fuma = getDist('fuma_actualmente');
+            const bebe = getDist('bebe_actualmente');
+            const fumaSex = getSexComp('fuma_actualmente');
+            const bebeSex = getSexComp('bebe_actualmente');
+            
+            const totalFuma = Object.values(fuma).reduce((a,b) => a+b, 0);
+            const siFuma = fuma['Sí'] || 0;
+            const pctFuma = totalFuma > 0 ? (siFuma / totalFuma * 100).toFixed(1) : 0;
+            
+            const totalBebe = Object.values(bebe).reduce((a,b) => a+b, 0);
+            const siBebe = bebe['Sí'] || 0;
+            const pctBebe = totalBebe > 0 ? (siBebe / totalBebe * 100).toFixed(1) : 0;
+            
+            let html = `
+                <div class="dashboard-grid">
+                    <div class="split-metric">
+                        <div class="split-side split-hombre">
+                            <div class="split-value">${pctFuma}%</div>
+                            <div class="split-label">Fuman actualmente</div>
+                        </div>
+                        <div class="split-side split-mujer">
+                            <div class="split-value">${pctBebe}%</div>
+                            <div class="split-label">Beben actualmente</div>
+                        </div>
+                    </div>
+                    
+                    ${pctFuma < 20 ? `
+                    <div class="success-card">
+                        <h4>✅ Bajo Consumo de Tabaco</h4>
+                        <div class="insight-text">
+                            Solo el ${pctFuma}% de estudiantes fuma actualmente. 
+                            Esto está por debajo de la media nacional universitaria.
+                        </div>
+                    </div>` : ''}
+                    
+                    ${pctFuma >= 20 ? `
+                    <div class="alert-card">
+                        <h4>⚠️ Consumo Significativo de Tabaco</h4>
+                        <div class="insight-text">
+                            El ${pctFuma}% de estudiantes fuma actualmente. 
+                            El tabaquismo es un factor de riesgo importante para enfermedades cardiovasculares y cáncer. 
+                            Se recomienda implementar programas de cesación tabáquica.
+                        </div>
+                    </div>` : ''}
+                    
+                    ${pctBebe > 60 ? `
+                    <div class="alert-card">
+                        <h4>⚠️ Alto Consumo de Alcohol</h4>
+                        <div class="insight-text">
+                            El ${pctBebe}% de estudiantes consume alcohol actualmente. 
+                            Aunque es común en población universitaria, es importante promover el consumo responsable y prevenir el consumo de riesgo.
+                        </div>
+                    </div>` : ''}
+            `;
+            
+            html += generateComparisonBars('Consumo de Tabaco', fumaSex);
+            html += generateComparisonBars('Consumo de Alcohol', bebeSex);
+            html += '</div>';
+            
+            container.innerHTML = html;
+        }
+
+        function generateSexualidad() {
+            const container = document.getElementById('sexualidad');
+            
+            const proteccion = getDist('uso_proteccion_barrera');
+            const proteccionSex = getSexComp('uso_proteccion_barrera');
+            const cribado = getDist('cribado_its_12m');
+            const conocePrep = getDist('conoce_prep');
+            const conocePpe = getDist('conoce_ppe');
+            
+            const totalProteccion = Object.values(proteccion).reduce((a,b) => a+b, 0);
+            const siempreProteccion = proteccion['Siempre'] || 0;
+            const pctSiempreProteccion = totalProteccion > 0 ? (siempreProteccion / totalProteccion * 100).toFixed(1) : 0;
+            
+            const totalCribado = Object.values(cribado).reduce((a,b) => a+b, 0);
+            const siCribado = cribado['Sí'] || 0;
+            const pctCribado = totalCribado > 0 ? (siCribado / totalCribado * 100).toFixed(1) : 0;
+            
+            const totalPrep = Object.values(conocePrep).reduce((a,b) => a+b, 0);
+            const siPrep = conocePrep['Sí'] || 0;
+            const pctPrep = totalPrep > 0 ? (siPrep / totalPrep * 100).toFixed(1) : 0;
+            
+            const totalPpe = Object.values(conocePpe).reduce((a,b) => a+b, 0);
+            const siPpe = conocePpe['Sí'] || 0;
+            const pctPpe = totalPpe > 0 ? (siPpe / totalPpe * 100).toFixed(1) : 0;
+            
+            let html = `
+                <div class="dashboard-grid">
+                    <div class="metric-card" style="background: linear-gradient(135deg, #ec4899, #db2777);">
+                        <div class="metric-value">${pctSiempreProteccion}%</div>
+                        <div class="metric-label">Usan Protección Siempre</div>
+                        <div class="metric-sublabel">${siempreProteccion} de ${totalProteccion} participantes</div>
+                    </div>
+                    
+                    <div class="metric-card" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                        <div class="metric-value">${pctCribado}%</div>
+                        <div class="metric-label">Se Hicieron Cribado ITS</div>
+                        <div class="metric-sublabel">En últimos 12 meses</div>
+                    </div>
+                    
+                    <div class="split-metric">
+                        <div class="split-side" style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); border: 2px solid #3b82f6;">
+                            <div class="split-value">${pctPrep}%</div>
+                            <div class="split-label">Conocen PrEP</div>
+                        </div>
+                        <div class="split-side" style="background: linear-gradient(135deg, #fae8ff, #f3e8ff); border: 2px solid #d946ef;">
+                            <div class="split-value">${pctPpe}%</div>
+                            <div class="split-label">Conocen PPE</div>
+                        </div>
+                    </div>
+                    
+                    ${pctSiempreProteccion < 50 ? `
+                    <div class="alert-card">
+                        <h4>🚨 Uso Inconsistente de Protección</h4>
+                        <div class="insight-text">
+                            Solo el ${pctSiempreProteccion}% usa protección de barrera siempre. 
+                            El uso inconsistente aumenta el riesgo de ITS y embarazos no planificados. 
+                            Se recomienda fortalecer la educación sexual y facilitar el acceso a métodos de barrera.
+                        </div>
+                    </div>` : ''}
+                    
+                    ${pctSiempreProteccion >= 70 ? `
+                    <div class="success-card">
+                        <h4>✅ Buen Uso de Protección</h4>
+                        <div class="insight-text">
+                            El ${pctSiempreProteccion}% usa protección de barrera siempre, lo cual indica buenas prácticas de salud sexual. 
+                            Esto contribuye a la prevención de ITS y planificación familiar.
+                        </div>
+                    </div>` : ''}
+                    
+                    ${pctCribado < 30 ? `
+                    <div class="alert-card">
+                        <h4>⚠️ Bajo Cribado de ITS</h4>
+                        <div class="insight-text">
+                            Solo el ${pctCribado}% se ha realizado cribado de ITS en el último año. 
+                            El cribado regular es importante para la detección temprana y prevención de complicaciones. 
+                            Considerar facilitar el acceso a pruebas en el campus.
+                        </div>
+                    </div>` : ''}
+                    
+                    ${pctPrep < 50 && pctPpe < 50 ? `
+                    <div class="alert-card">
+                        <h4>💡 Bajo Conocimiento sobre Prevención VIH</h4>
+                        <div class="insight-text">
+                            Solo el ${pctPrep}% conoce PrEP y el ${pctPpe}% conoce PPE. 
+                            Estas son herramientas importantes de prevención del VIH que deberían ser más conocidas. 
+                            Se recomienda incluir información sobre estos métodos en programas de educación sexual.
+                        </div>
+                    </div>` : ''}
+            `;
+            
+            html += generateComparisonBars('Uso de Protección de Barrera', proteccionSex);
+            html += '</div>';
+            
+            container.innerHTML = html;
+        }
+
+        function generateComparisonBars(title, sexComp) {
+            if (!sexComp || Object.keys(sexComp).length < 2) return '';
+            
+            const hombre = sexComp['Hombre'] || {};
+            const mujer = sexComp['Mujer'] || {};
+            const totalH = Object.values(hombre).reduce((a,b) => a+b, 0);
+            const totalM = Object.values(mujer).reduce((a,b) => a+b, 0);
+            
+            const allCats = new Set([...Object.keys(hombre), ...Object.keys(mujer)]);
+            
+            let html = `<div class="comparison-card" style="grid-column: span 2;"><h3>${title} por Sexo</h3><div class="comparison-bars">`;
+            
+            allCats.forEach(cat => {
+                const countH = hombre[cat] || 0;
+                const countM = mujer[cat] || 0;
+                const pctH = totalH > 0 ? (countH / totalH * 100).toFixed(1) : 0;
+                const pctM = totalM > 0 ? (countM / totalM * 100).toFixed(1) : 0;
+                
+                html += `
+                    <div style="margin-bottom: 1.5rem;">
+                        <div style="color: #4a5568; font-weight: 600; margin-bottom: 0.5rem;">${cat}</div>
+                        <div class="comparison-item">
+                            <div class="comparison-label">Hombre</div>
+                            <div class="comparison-bar-container">
+                                <div class="comparison-bar bar-hombre" style="width: ${pctH}%">
+                                    ${countH} (${pctH}%)
+                                </div>
+                            </div>
+                        </div>
+                        <div class="comparison-item" style="margin-top: 0.5rem;">
+                            <div class="comparison-label">Mujer</div>
+                            <div class="comparison-bar-container">
+                                <div class="comparison-bar bar-mujer" style="width: ${pctM}%">
+                                    ${countM} (${pctM}%)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div></div>';
+            return html;
+        }
+
+        function analyzeSexDiff(sexComp) {
+            if (!sexComp || Object.keys(sexComp).length < 2) {
+                return { maxDiff: 0, text: '' };
+            }
+            
+            const hombre = sexComp['Hombre'] || {};
+            const mujer = sexComp['Mujer'] || {};
+            const totalH = Object.values(hombre).reduce((a,b) => a+b, 0);
+            const totalM = Object.values(mujer).reduce((a,b) => a+b, 0);
+            
+            let maxDiff = 0;
+            let maxCat = '';
+            let maxPctH = 0;
+            let maxPctM = 0;
+            
+            const allCats = new Set([...Object.keys(hombre), ...Object.keys(mujer)]);
+            
+            allCats.forEach(cat => {
+                const pctH = totalH > 0 ? (hombre[cat] || 0) / totalH * 100 : 0;
+                const pctM = totalM > 0 ? (mujer[cat] || 0) / totalM * 100 : 0;
+                const diff = Math.abs(pctH - pctM);
+                
+                if (diff > maxDiff) {
+                    maxDiff = diff;
+                    maxCat = cat;
+                    maxPctH = pctH;
+                    maxPctM = pctM;
+                }
+            });
+            
+            let text = '';
+            if (maxDiff > 10) {
+                const higher = maxPctH > maxPctM ? 'hombres' : 'mujeres';
+                const higherPct = Math.max(maxPctH, maxPctM).toFixed(1);
+                const lowerPct = Math.min(maxPctH, maxPctM).toFixed(1);
+                text = `En "${maxCat}": ${higherPct}% de ${higher} vs ${lowerPct}% del otro sexo. Diferencia de ${maxDiff.toFixed(1)} puntos porcentuales.`;
+            }
+            
+            return { maxDiff, text, category: maxCat };
+        }
+    </script>
+</body>
+</html>
